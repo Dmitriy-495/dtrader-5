@@ -1,0 +1,26 @@
+{
+  "name": "@dtrader5/bot",
+  "version": "5.0.0",
+  "description": "DTrader-5 Bot - Data Collection Service",
+  "main": "dist/app.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node dist/app.js",
+    "start:dev": "nodemon --exec ts-node src/app.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@dtrader5/shared": "file:../shared/lib/typescript",
+    "axios": "^1.7.9",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.5.13",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}

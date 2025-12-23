@@ -1,0 +1,174 @@
+# ============================================
+# DTrader-5 Shared Configuration
+# ============================================
+
+version: "5.0.0"
+name: "DTrader-5"
+
+# ============================================
+# REDIS CONFIGURATION
+# ============================================
+redis:
+  host: ${REDIS_HOST}
+  port: ${REDIS_PORT}
+  password: ${REDIS_PASSWORD}
+  db: ${REDIS_DB}
+  
+  connection:
+    retry_strategy:
+      max_attempts: 10
+      delay: 1000
+      backoff: exponential
+    
+    socket:
+      keep_alive: true
+      timeout: 5000
+  
+  # Redis Pub/Sub Channels
+  channels:
+    # Market Data
+    market_orderbook: "market:orderbook:{pair}"
+    market_trades: "market:trades:{pair}"
+    market_ticker: "market:ticker:{pair}"
+    market_balance: "market:balance:update"
+    
+    # Trading Signals
+    signal_buy: "signal:{strategy}:buy"
+    signal_sell: "signal:{strategy}:sell"
+    signal_close: "signal:{strategy}:close"
+    
+    # Orders
+    order_new: "order:new"
+    order_executed: "order:executed"
+    order_cancelled: "order:cancelled"
+    order_failed: "order:failed"
+    
+    # Risk Management
+    risk_alert: "risk:alert"
+    risk_limit_exceeded: "risk:limit:exceeded"
+    risk_stop_loss: "risk:stop_loss"
+    
+    # System
+    system_heartbeat: "system:heartbeat:{service}"
+    system_health: "system:health:{service}"
+    system_error: "system:error:{service}"
+  
+  # Redis Streams (Event Sourcing)
+  streams:
+    market_events: "stream:market"
+    trading_events: "stream:trading"
+    risk_events: "stream:risk"
+    system_events: "stream:system"
+  
+  # Redis Keys (State)
+  keys:
+    balance_current: "state:balance:current"
+    positions_open: "state:positions:open"
+    orderbook: "state:orderbook:{pair}"
+    trades_history: "state:trades:history"
+
+# ============================================
+# EXCHANGE CONFIGURATION
+# ============================================
+exchange:
+  name: gateio
+  api_key: ${GATEIO_API_KEY}
+  api_secret: ${GATEIO_API_SECRET}
+  testnet: ${GATEIO_TESTNET}
+  
+  api:
+    base_url: "https://api.gateio.ws"
+    rest_timeout: 10000
+    rate_limit:
+      requests_per_minute: 600
+      burst: 100
+  
+  websocket:
+    spot_url: "wss://ws.gate.io/v4/"
+    futures_url: "wss://fx-ws.gateio.ws/v4/ws/usdt"
+    ping_interval: 15000
+    ping_timeout: 3000
+    reconnect:
+      max_attempts: 10
+      delay: 1000
+
+# ============================================
+# LOGGING CONFIGURATION
+# ============================================
+logging:
+  level: ${LOG_LEVEL}
+  format: ${LOG_FORMAT}
+  
+  outputs:
+    - type: console
+      enabled: true
+    
+    - type: file
+      enabled: true
+      path: "./logs/{service}.log"
+      rotation:
+        max_size: 10M
+        max_files: 5
+    
+    - type: redis
+      enabled: false
+      stream: "logs:all"
+  
+  structured:
+    include_timestamp: true
+    include_service: true
+    include_trace_id: true
+
+# ============================================
+# MONITORING CONFIGURATION
+# ============================================
+monitoring:
+  enabled: ${ENABLE_METRICS}
+  metrics_port: ${METRICS_PORT}
+  
+  health_check:
+    interval: 30000
+    timeout: 5000
+  
+  heartbeat:
+    interval: 10000
+    timeout: 30000
+
+# ============================================
+# SECURITY CONFIGURATION
+# ============================================
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: 86400
+  
+  api:
+    rate_limit: ${API_RATE_LIMIT}
+    cors:
+      enabled: true
+      origins:
+        - "http://localhost:3000"
+        - "http://localhost:8080"
+
+# ============================================
+# TRADING CONFIGURATION
+# ============================================
+trading:
+  mode: ${TRADING_MODE}
+  
+  pairs:
+    - BTC_USDT
+    - ETH_USDT
+    - SOL_USDT
+  
+  limits:
+    max_position_size: ${MAX_POSITION_SIZE}
+    max_daily_trades: ${MAX_DAILY_TRADES}
+    max_total_exposure: 10000
+  
+  timeframes:
+    - 1m
+    - 5m
+    - 15m
+    - 1h
+    - 4h
