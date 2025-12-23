@@ -12,7 +12,6 @@
     "rebuild": "npm run clean && npm run build"
   },
   "dependencies": {
-    "@dtrader5/shared": "file:../shared/lib/typescript",
     "axios": "^1.7.9",
     "ws": "^8.18.0"
   },
