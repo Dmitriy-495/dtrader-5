@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { createGateIOSignature } from '../signature';
+import axios from "axios";
+import { createGateIOSignature } from "../signature";
 
 /**
  * Интерфейс валюты на унифицированном счёте
@@ -53,28 +53,28 @@ export interface UnifiedAccountConfig {
 /**
  * Получить информацию об унифицированном счёте
  * GET /unified/accounts
- * 
+ *
  * @param config - Конфигурация с API ключами
  * @returns Информация об унифицированном счёте
- * 
+ *
  * @see https://www.gate.io/docs/developers/apiv4/en/\#query-unified-account
  */
 export async function getUnifiedAccounts(
   config: UnifiedAccountConfig
 ): Promise<UnifiedAccount> {
-  const method = 'GET';
-  const path = '/api/v4/unified/accounts';
-  
+  const method = "GET";
+  const path = "/api/v4/unified/accounts";
+
   // Query параметры (если указана валюта)
   const queryParams: string[] = [];
   if (config.currency) {
     queryParams.push(`currency=${config.currency}`);
   }
-  const queryString = queryParams.join('&');
+  const queryString = queryParams.join("&");
 
-  const payloadString = '';
+  const payloadString = "";
 
-  console.log('📊 Запрос унифицированного счёта...');
+  console.log("📊 Запрос унифицированного счёта...");
 
   try {
     // Генерируем подпись
@@ -88,16 +88,16 @@ export async function getUnifiedAccounts(
     );
 
     // Формируем URL
-    const url = queryString 
-      ? `${config.baseUrl}/unified/accounts?${queryString}`
-      : `${config.baseUrl}/unified/accounts`;
+    const url = queryString
+      ? `${config.baseUrl}/api/v4/unified/accounts?${queryString}`
+      : `${config.baseUrl}/api/v4/unified/accounts`;
 
     // Делаем запрос
     const response = await axios.get(url, {
       headers: {
         ...headers,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
       timeout: 10000,
     });
@@ -108,17 +108,16 @@ export async function getUnifiedAccounts(
     displayUnifiedAccount(account);
 
     return account;
-
   } catch (error: any) {
-    console.error('❌ Ошибка получения унифицированного счёта:');
-    
+    console.error("❌ Ошибка получения унифицированного счёта:");
+
     if (error.response) {
       console.error(`   HTTP ${error.response.status}`);
       console.error(`   ${JSON.stringify(error.response.data)}`);
     } else {
       console.error(`   ${error.message}`);
     }
-    
+
     throw error;
   }
 }
@@ -127,34 +126,36 @@ export async function getUnifiedAccounts(
  * Красиво выводим информацию об унифицированном счёте
  */
 function displayUnifiedAccount(account: UnifiedAccount): void {
-  console.log('✅ Унифицированный счёт получен!');
-  console.log('');
+  console.log("✅ Унифицированный счёт получен!");
+  console.log("");
 
   // Основная информация
-  console.log('📊 Основная информация:');
+  console.log("📊 Основная информация:");
   console.log(`   User ID: ${account.user_id}`);
-  console.log(`   Заблокирован: ${account.locked ? 'Да ❌' : 'Нет ✅'}`);
-  console.log(`   Кредит: ${account.enable_credit ? 'Включен ✅' : 'Выключен'}`);
-  console.log('');
+  console.log(`   Заблокирован: ${account.locked ? "Да ❌" : "Нет ✅"}`);
+  console.log(
+    `   Кредит: ${account.enable_credit ? "Включен ✅" : "Выключен"}`
+  );
+  console.log("");
 
   // Финансовые показатели
-  console.log('💰 Финансовые показатели:');
+  console.log("💰 Финансовые показатели:");
   console.log(`   Общий баланс: ${account.total}`);
   console.log(`   Equity: ${account.unified_account_total_equity}`);
   console.log(`   Заёмные средства: ${account.borrowed}`);
   console.log(`   Доступная маржа: ${account.total_available_margin}`);
   console.log(`   Плечо: ${account.leverage}x`);
-  console.log('');
+  console.log("");
 
   // Балансы по валютам
   if (account.balances && Object.keys(account.balances).length > 0) {
-    console.log('💵 Балансы по валютам:');
-    
+    console.log("💵 Балансы по валютам:");
+
     Object.entries(account.balances).forEach(([currency, data]) => {
       const available = parseFloat(data.available);
       const freeze = parseFloat(data.freeze);
       const borrowed = parseFloat(data.borrowed);
-      
+
       // Показываем только валюты с балансом > 0
       if (available > 0 || freeze > 0 || borrowed > 0) {
         console.log(`   ${currency}:`);
@@ -165,5 +166,5 @@ function displayUnifiedAccount(account: UnifiedAccount): void {
     });
   }
 
-  console.log('');
+  console.log("");
 }

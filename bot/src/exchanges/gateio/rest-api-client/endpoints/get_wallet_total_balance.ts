@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { createGateIOSignature } from '../signature';
+import axios from "axios";
+import { createGateIOSignature } from "../signature";
 
 /**
  * Интерфейс баланса по счёту
@@ -31,21 +31,21 @@ export interface BalanceConfig {
 /**
  * Получить общий баланс кошелька
  * GET /wallet/total_balance
- * 
+ *
  * @param config - Конфигурация с API ключами
  * @returns Общий баланс по всем счетам
- * 
+ *
  * @see https://www.gate.io/docs/developers/apiv4/en/\#retrieve-user-39-s-total-balances
  */
 export async function getWalletTotalBalance(
   config: BalanceConfig
 ): Promise<TotalBalance> {
-  const method = 'GET';
-  const path = '/api/v4/wallet/total_balance';
-  const queryString = '';
-  const payloadString = '';
+  const method = "GET";
+  const path = "/api/v4/wallet/total_balance";
+  const queryString = "";
+  const payloadString = "";
 
-  console.log('📊 Запрос баланса...');
+  console.log("📊 Запрос баланса...");
 
   try {
     // Генерируем подпись
@@ -59,14 +59,17 @@ export async function getWalletTotalBalance(
     );
 
     // Делаем запрос
-    const response = await axios.get(`${config.baseUrl}/wallet/total_balance`, {
-      headers: {
-        ...headers,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      timeout: 10000,
-    });
+    const response = await axios.get(
+      `${config.baseUrl}/api/v4/wallet/total_balance`,
+      {
+        headers: {
+          ...headers,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
 
     const balance: TotalBalance = response.data;
 
@@ -74,17 +77,16 @@ export async function getWalletTotalBalance(
     displayBalance(balance);
 
     return balance;
-
   } catch (error: any) {
-    console.error('❌ Ошибка получения баланса:');
-    
+    console.error("❌ Ошибка получения баланса:");
+
     if (error.response) {
       console.error(`   HTTP ${error.response.status}`);
       console.error(`   ${JSON.stringify(error.response.data)}`);
     } else {
       console.error(`   ${error.message}`);
     }
-    
+
     throw error;
   }
 }
@@ -93,8 +95,8 @@ export async function getWalletTotalBalance(
  * Красиво выводим баланс в консоль
  */
 function displayBalance(balance: TotalBalance): void {
-  console.log('✅ Баланс получен!');
-  console.log('');
+  console.log("✅ Баланс получен!");
+  console.log("");
 
   // Общий баланс
   if (balance.total) {
@@ -104,8 +106,8 @@ function displayBalance(balance: TotalBalance): void {
 
   // Детали по счетам
   if (balance.details && Object.keys(balance.details).length > 0) {
-    console.log('');
-    console.log('📋 По счетам:');
+    console.log("");
+    console.log("📋 По счетам:");
 
     Object.entries(balance.details).forEach(([account, data]) => {
       const amount = parseFloat(data.amount);
@@ -115,5 +117,5 @@ function displayBalance(balance: TotalBalance): void {
     });
   }
 
-  console.log('');
+  console.log("");
 }

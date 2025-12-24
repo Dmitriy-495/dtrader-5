@@ -59,7 +59,7 @@ export async function getUnifiedPositions(
   config: UnifiedPositionsConfig
 ): Promise<UnifiedPosition[]> {
   const method = "GET";
-  const path = "/api/v4/unified/positions";
+  const path = "/api/v4/futures/usdt/positions";
 
   // Query параметры
   const queryParams: string[] = [];
@@ -85,10 +85,8 @@ export async function getUnifiedPositions(
 
     // Формируем URL
     const url = queryString
-      ? `${config.baseUrl}/unified/positions?${queryString}`
-      : `${config.baseUrl}/unified/positions`;
-
-    console.log(url);
+      ? `${config.baseUrl}/api/v4/futures/usdt/positions?${queryString}`
+      : `${config.baseUrl}/api/v4/futures/usdt/positions`;
 
     // Делаем запрос
     const response = await axios.get(url, {
