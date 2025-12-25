@@ -17,8 +17,14 @@ async function testPingPong() {
   const wsUrl =
     process.env.BASE_URL_WS || "wss://fx-ws.gateio.ws/v4/ws/usdt";
 
+  // Определяем тип endpoint (futures или spot)
+  const isFutures = wsUrl.includes("fx-ws");
+  const pongChannel = isFutures ? "futures.pong" : "spot.pong";
+
   console.log("📋 Конфигурация:");
   console.log(`   WS URL: ${wsUrl}`);
+  console.log(`   Тип: ${isFutures ? "Futures" : "Spot"}`);
+  console.log(`   Pong канал: ${pongChannel}`);
   console.log(`   Ping интервал: 15000ms (15 сек)`);
   console.log(`   Pong timeout: 3000ms (3 сек)`);
   console.log("");
@@ -32,9 +38,9 @@ async function testPingPong() {
     pongTimeout: 3000,
   });
 
-  // Регистрируем обработчик для pong сообщений
-  wsManager.onMessage("spot.pong", (data) => {
-    console.log("✅ Получен spot.pong от сервера:", data);
+  // Регистрируем обработчик для правильного pong канала
+  wsManager.onMessage(pongChannel, (data) => {
+    console.log(`✅ Получен ${pongChannel} от сервера:`, data);
   });
 
   // Подключаемся

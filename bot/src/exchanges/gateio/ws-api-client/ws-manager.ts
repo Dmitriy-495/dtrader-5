@@ -25,12 +25,6 @@ export enum ConnectionStatus {
 
 /**
  * Менеджер WebSocket соединений для Gate.io
- * 
- * Функции:
- * - Управление подключением
- * - Автоматический reconnect
- * - Heartbeat (ping-pong)
- * - Обработка сообщений
  */
 export class WsManager {
   private config: Required<WsManagerConfig>;
@@ -72,7 +66,6 @@ export class WsManager {
     try {
       this.ws = new WebSocket(this.config.url);
 
-      // Обработчики событий
       this.ws.on("open", () => this.handleOpen());
       this.ws.on("message", (data: WebSocket.Data) => this.handleMessage(data));
       this.ws.on("error", (error: Error) => this.handleError(error));
@@ -92,19 +85,16 @@ export class WsManager {
   disconnect(): void {
     console.log("🔌 Отключение от WebSocket...");
 
-    // Останавливаем heartbeat
     if (this.heartbeat) {
       this.heartbeat.stop();
       this.heartbeat = null;
     }
 
-    // Отменяем попытки переподключения
     if (this.reconnectTimeoutId) {
       clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
     }
 
-    // Закрываем соединение
     if (this.ws) {
       this.ws.removeAllListeners();
       if (this.ws.readyState === WebSocket.OPEN) {
@@ -180,7 +170,6 @@ export class WsManager {
     this.status = ConnectionStatus.CONNECTED;
     this.reconnectAttempts = 0;
 
-    // Запускаем heartbeat
     this.startHeartbeat();
   }
 
@@ -191,8 +180,8 @@ export class WsManager {
     try {
       const message = JSON.parse(data.toString());
 
-      // Обрабатываем pong ответ от сервера
-      if (message.channel === "spot.pong") {
+      // Обрабатываем pong ответ от сервера (любой .pong канал)
+      if (message.channel && message.channel.endsWith(".pong")) {
         if (this.heartbeat) {
           this.heartbeat.handlePongReceived();
         }
@@ -200,7 +189,7 @@ export class WsManager {
       }
 
       // Логируем только важные сообщения (не ping)
-      if (message.channel !== "spot.ping") {
+      if (message.channel && !message.channel.endsWith(".ping")) {
         console.log("📨 Получено сообщение:", {
           channel: message.channel,
           event: message.event,
@@ -233,13 +222,11 @@ export class WsManager {
     console.log(`   Code: ${code}`);
     console.log(`   Reason: ${reason.toString() || "No reason"}`);
 
-    // Останавливаем heartbeat
     if (this.heartbeat) {
       this.heartbeat.stop();
       this.heartbeat = null;
     }
 
-    // Если закрытие не нормальное - пробуем переподключиться
     if (code !== 1000) {
       this.handleConnectionFailure();
     } else {
@@ -279,6 +266,7 @@ export class WsManager {
     if (!this.ws) return;
 
     this.heartbeat = new WsHeartbeat({
+      channel: this.getPingChannel(),
       pingInterval: this.config.pingInterval,
       pongTimeout: this.config.pongTimeout,
       onPongReceived: () => {
@@ -295,6 +283,18 @@ export class WsManager {
     });
 
     this.heartbeat.start(this.ws);
+  }
+
+  /**
+   * Определить правильный ping канал на основе URL
+   */
+  private getPingChannel(): string {
+    // Если URL содержит fx-ws (futures) - используем futures.ping
+    if (this.config.url.includes("fx-ws")) {
+      return "futures.ping";
+    }
+    // Иначе spot.ping
+    return "spot.ping";
   }
 }
 

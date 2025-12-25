@@ -4,20 +4,16 @@ import WebSocket from "ws";
  * Конфигурация для Heartbeat
  */
 export interface HeartbeatConfig {
-  pingInterval: number; // Интервал ping в мс (по умолчанию 15000)
-  pongTimeout: number; // Таймаут ожидания pong в мс (по умолчанию 3000)
-  onPongReceived?: () => void; // Callback при получении pong
-  onPongTimeout?: () => void; // Callback при timeout pong
-  onError?: (error: Error) => void; // Callback при ошибке
+  pingInterval: number; // Интервал ping в мс
+  pongTimeout: number; // Таймаут ожидания pong в мс
+  channel: string; // Канал ping: "spot.ping" или "futures.ping"
+  onPongReceived?: () => void;
+  onPongTimeout?: () => void;
+  onError?: (error: Error) => void;
 }
 
 /**
  * Класс для управления Ping-Pong механизмом WebSocket
- * 
- * Реализует механизм из документации Gate.io:
- * - Отправляет ping каждые 15 секунд
- * - Ожидает ответ с channel: "spot.pong" в течение 3 секунд
- * - При отсутствии ответа вызывает reconnect
  */
 export class WsHeartbeat {
   private ws: WebSocket | null = null;
@@ -27,20 +23,22 @@ export class WsHeartbeat {
   private isRunning: boolean = false;
   private lastPongTime: number = 0;
   private waitingForPong: boolean = false;
+  private pongChannel: string;
 
   constructor(config: HeartbeatConfig) {
     this.config = {
       pingInterval: config.pingInterval || 15000,
       pongTimeout: config.pongTimeout || 3000,
+      channel: config.channel,
       onPongReceived: config.onPongReceived || (() => {}),
       onPongTimeout: config.onPongTimeout || (() => {}),
       onError: config.onError || (() => {}),
     };
+
+    // Определяем pong канал на основе ping канала
+    this.pongChannel = config.channel.replace(".ping", ".pong");
   }
 
-  /**
-   * Запуск Heartbeat механизма
-   */
   start(ws: WebSocket): void {
     if (this.isRunning) {
       console.warn("⚠️  Heartbeat уже запущен");
@@ -52,18 +50,16 @@ export class WsHeartbeat {
     this.lastPongTime = Date.now();
 
     console.log("💓 Heartbeat запущен");
+    console.log(`   Ping канал: ${this.config.channel}`);
+    console.log(`   Pong канал: ${this.pongChannel}`);
     console.log(`   Ping интервал: ${this.config.pingInterval}ms`);
     console.log(`   Pong timeout: ${this.config.pongTimeout}ms`);
 
-    // Запускаем периодическую отправку ping
     this.pingIntervalId = setInterval(() => {
       this.sendPing();
     }, this.config.pingInterval);
   }
 
-  /**
-   * Остановка Heartbeat механизма
-   */
   stop(): void {
     if (!this.isRunning) {
       return;
@@ -71,7 +67,6 @@ export class WsHeartbeat {
 
     console.log("💔 Остановка Heartbeat");
 
-    // Очищаем таймеры
     if (this.pingIntervalId) {
       clearInterval(this.pingIntervalId);
       this.pingIntervalId = null;
@@ -87,9 +82,6 @@ export class WsHeartbeat {
     this.ws = null;
   }
 
-  /**
-   * Отправка ping на сервер
-   */
   private sendPing(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn("⚠️  WebSocket не готов для ping");
@@ -97,19 +89,15 @@ export class WsHeartbeat {
     }
 
     try {
-      // Отправляем Application-level ping (как в документации)
       const pingMessage = {
         time: Math.floor(Date.now() / 1000),
-        channel: "spot.ping",
+        channel: this.config.channel,
       };
 
       this.ws.send(JSON.stringify(pingMessage));
-      console.log("🏓 Ping отправлен");
+      console.log(`🏓 Ping отправлен (${this.config.channel})`);
 
-      // Устанавливаем флаг ожидания pong
       this.waitingForPong = true;
-
-      // Запускаем таймер ожидания pong
       this.startPongTimer();
     } catch (error) {
       const err = error as Error;
@@ -118,16 +106,11 @@ export class WsHeartbeat {
     }
   }
 
-  /**
-   * Запуск таймера ожидания pong
-   */
   private startPongTimer(): void {
-    // Очищаем предыдущий таймер если есть
     if (this.pongTimeoutId) {
       clearTimeout(this.pongTimeoutId);
     }
 
-    // Создаём новый таймер
     this.pongTimeoutId = setTimeout(() => {
       if (this.waitingForPong) {
         console.error("❌ Pong timeout! Нет ответа от сервера");
@@ -136,18 +119,13 @@ export class WsHeartbeat {
     }, this.config.pongTimeout);
   }
 
-  /**
-   * Обработка получения pong (вызывается извне из ws-manager)
-   */
   handlePongReceived(): void {
     if (!this.waitingForPong) {
       return;
     }
 
-    // Сбрасываем флаг ожидания
     this.waitingForPong = false;
 
-    // Очищаем таймер ожидания
     if (this.pongTimeoutId) {
       clearTimeout(this.pongTimeoutId);
       this.pongTimeoutId = null;
@@ -161,27 +139,22 @@ export class WsHeartbeat {
     this.config.onPongReceived();
   }
 
-  /**
-   * Обработка timeout pong
-   */
   private handlePongTimeout(): void {
     console.error("💀 Pong timeout - соединение потеряно!");
     this.config.onPongTimeout();
     this.stop();
   }
 
-  /**
-   * Получить время последнего pong
-   */
   getLastPongTime(): number {
     return this.lastPongTime;
   }
 
-  /**
-   * Проверка активности Heartbeat
-   */
   isActive(): boolean {
     return this.isRunning;
+  }
+
+  getPongChannel(): string {
+    return this.pongChannel;
   }
 }
 
