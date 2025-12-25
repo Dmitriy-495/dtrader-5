@@ -1,17 +1,11 @@
 import { createClient, RedisClientType } from 'redis';
 
-/**
- * Конфигурация Redis Subscriber
- */
 export interface RedisSubscriberConfig {
   host: string;
   port: number;
-  channels: string[]; // Каналы для подписки
+  channels: string[];
 }
 
-/**
- * Redis Subscriber для получения событий
- */
 export class RedisSubscriber {
   private client: RedisClientType | null = null;
   private config: RedisSubscriberConfig;
@@ -22,9 +16,6 @@ export class RedisSubscriber {
     this.config = config;
   }
 
-  /**
-   * Подключение к Redis
-   */
   async connect(): Promise<void> {
     if (this.isConnected) {
       console.warn('⚠️  Redis уже подключен');
@@ -61,20 +52,21 @@ export class RedisSubscriber {
     }
   }
 
-  /**
-   * Подписка на каналы
-   */
   private async subscribeToChannels(): Promise<void> {
     if (!this.client) return;
 
     for (const channel of this.config.channels) {
       await this.client.subscribe(channel, (message, channelName) => {
-        console.log(`📥 Redis message from ${channelName}`);
+        console.log(`📥 Redis message from ${channelName}:`, message.substring(0, 100));
         
         // Вызываем обработчик
         const handler = this.messageHandlers.get(channelName);
         if (handler) {
+          console.log(`✅ Вызываем обработчик для ${channelName}`);
           handler(message);
+        } else {
+          console.warn(`⚠️  Нет обработчика для ${channelName}`);
+          console.warn(`   Зарегистрированные:`, Array.from(this.messageHandlers.keys()));
         }
       });
 
@@ -82,9 +74,6 @@ export class RedisSubscriber {
     }
   }
 
-  /**
-   * Отключение от Redis
-   */
   async disconnect(): Promise<void> {
     if (!this.isConnected || !this.client) {
       return;
@@ -97,17 +86,11 @@ export class RedisSubscriber {
     console.log('✅ Redis отключен');
   }
 
-  /**
-   * Регистрация обработчика для канала
-   */
   onMessage(channel: string, handler: (message: string) => void): void {
     this.messageHandlers.set(channel, handler);
     console.log(`📡 Зарегистрирован обработчик для: ${channel}`);
   }
 
-  /**
-   * Проверка подключения
-   */
   isReady(): boolean {
     return this.isConnected;
   }

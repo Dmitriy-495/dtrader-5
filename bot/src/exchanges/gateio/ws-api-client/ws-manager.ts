@@ -5,11 +5,11 @@ import { WsHeartbeat } from "./channels/heartbeat";
  * Конфигурация WebSocket Manager
  */
 export interface WsManagerConfig {
-  url: string; // WebSocket URL
-  reconnectInterval?: number; // Интервал переподключения (мс)
-  maxReconnectAttempts?: number; // Максимум попыток переподключения
-  pingInterval?: number; // Интервал ping (мс)
-  pongTimeout?: number; // Таймаут pong (мс)
+  url: string;
+  reconnectInterval?: number;
+  maxReconnectAttempts?: number;
+  pingInterval?: number;
+  pongTimeout?: number;
 }
 
 /**
@@ -45,9 +45,6 @@ export class WsManager {
     };
   }
 
-  /**
-   * Подключение к WebSocket
-   */
   async connect(): Promise<void> {
     if (this.status === ConnectionStatus.CONNECTED) {
       console.warn("⚠️  Уже подключены");
@@ -79,9 +76,6 @@ export class WsManager {
     }
   }
 
-  /**
-   * Отключение от WebSocket
-   */
   disconnect(): void {
     console.log("🔌 Отключение от WebSocket...");
 
@@ -108,9 +102,6 @@ export class WsManager {
     console.log("✅ Отключено");
   }
 
-  /**
-   * Отправка сообщения
-   */
   send(data: any): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error("❌ WebSocket не подключен");
@@ -128,43 +119,24 @@ export class WsManager {
     }
   }
 
-  /**
-   * Регистрация обработчика сообщений для канала
-   */
   onMessage(channel: string, handler: (data: any) => void): void {
     this.messageHandlers.set(channel, handler);
     console.log(`📡 Зарегистрирован обработчик для канала: ${channel}`);
   }
 
-  /**
-   * Удаление обработчика сообщений
-   */
   offMessage(channel: string): void {
     this.messageHandlers.delete(channel);
     console.log(`📡 Удалён обработчик для канала: ${channel}`);
   }
 
-  /**
-   * Получить текущий статус
-   */
   getStatus(): ConnectionStatus {
     return this.status;
   }
 
-  /**
-   * Проверка подключения
-   */
   isConnected(): boolean {
     return this.status === ConnectionStatus.CONNECTED;
   }
 
-  // ============================================
-  // Внутренние обработчики
-  // ============================================
-
-  /**
-   * Обработка открытия соединения
-   */
   private handleOpen(): void {
     console.log("✅ WebSocket подключен!");
     this.status = ConnectionStatus.CONNECTED;
@@ -173,17 +145,31 @@ export class WsManager {
     this.startHeartbeat();
   }
 
-  /**
-   * Обработка входящего сообщения
-   */
   private handleMessage(data: WebSocket.Data): void {
     try {
       const message = JSON.parse(data.toString());
 
-      // Обрабатываем pong ответ от сервера (любой .pong канал)
+      console.log("🔍 DEBUG: Получено сообщение");
+      console.log("   Channel:", message.channel);
+      console.log("   Event:", message.event);
+
+      // Обрабатываем pong ответ от сервера
       if (message.channel && message.channel.endsWith(".pong")) {
+        console.log("✅ Это PONG сообщение!");
         if (this.heartbeat) {
           this.heartbeat.handlePongReceived();
+        }
+
+        // Проверяем есть ли обработчик для этого канала
+        console.log("🔍 Поиск обработчика для:", message.channel);
+        console.log("🔍 Зарегистрированные обработчики:", Array.from(this.messageHandlers.keys()));
+        
+        const handler = this.messageHandlers.get(message.channel);
+        if (handler) {
+          console.log("✅ Обработчик найден! Вызываем...");
+          handler(message);
+        } else {
+          console.warn("⚠️  Обработчик НЕ найден для канала:", message.channel);
         }
         return;
       }
@@ -207,16 +193,10 @@ export class WsManager {
     }
   }
 
-  /**
-   * Обработка ошибки
-   */
   private handleError(error: Error): void {
     console.error("❌ WebSocket ошибка:", error.message);
   }
 
-  /**
-   * Обработка закрытия соединения
-   */
   private handleClose(code: number, reason: Buffer): void {
     console.log("🔌 WebSocket закрыт");
     console.log(`   Code: ${code}`);
@@ -234,9 +214,6 @@ export class WsManager {
     }
   }
 
-  /**
-   * Обработка неудачного подключения
-   */
   private handleConnectionFailure(): void {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
       console.error(
@@ -259,9 +236,6 @@ export class WsManager {
     }, delay);
   }
 
-  /**
-   * Запуск Heartbeat
-   */
   private startHeartbeat(): void {
     if (!this.ws) return;
 
@@ -285,15 +259,10 @@ export class WsManager {
     this.heartbeat.start(this.ws);
   }
 
-  /**
-   * Определить правильный ping канал на основе URL
-   */
   private getPingChannel(): string {
-    // Если URL содержит fx-ws (futures) - используем futures.ping
     if (this.config.url.includes("fx-ws")) {
       return "futures.ping";
     }
-    // Иначе spot.ping
     return "spot.ping";
   }
 }
