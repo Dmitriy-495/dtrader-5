@@ -6,13 +6,13 @@ import {
 } from "./exchanges/gateio/rest-api-client/endpoints";
 import { WsManager } from "./exchanges/gateio/ws-api-client/ws-manager";
 import { RedisPublisher } from "./redis/publisher";
+import { EventBuilder, EventLogger } from "./events";
 
-// Загружаем переменные окружения
 dotenv.config();
 
 // ============================================
 // DTrader-5.1 Bot
-// Автономный торговый бот с WebSocket + Redis
+// Автономный торговый бот с Event System
 // ============================================
 
 class Bot {
@@ -27,31 +27,27 @@ class Bot {
   
   private wsManager: WsManager | null = null;
   private redisPublisher: RedisPublisher | null = null;
+  private eventBuilder: EventBuilder;
+  private eventLogger: EventLogger;
 
   constructor() {
     this.validateConfig();
+    this.eventBuilder = new EventBuilder('bot');
+    this.eventLogger = new EventLogger();
   }
 
-  /**
-   * Валидация конфигурации
-   */
   private validateConfig(): void {
     if (!this.config.apiKey || !this.config.apiSecret) {
       throw new Error('❌ API ключи не найдены в .env');
     }
-
     if (!this.config.baseUrl) {
       throw new Error('❌ BASE_URL_REST не найден в .env');
     }
-
     if (!this.config.wsUrl) {
       throw new Error('❌ BASE_URL_WS не найден в .env');
     }
   }
 
-  /**
-   * Запуск бота
-   */
   async start(): Promise<void> {
     console.log('╔════════════════════════════════════════════╗');
     console.log('║   🚀 DTrader-5.1 Bot - STARTED! 🚀       ║');
@@ -60,11 +56,9 @@ class Bot {
 
     try {
       // 1. Подключаемся к Redis
-      console.log('🔴 Инициализация Redis Publisher...');
       await this.startRedis();
 
       // 2. REST API - получаем данные счёта
-      console.log('');
       console.log('📊 Запрос данных через REST API...');
       await getWalletTotalBalance(this.config);
       await getUnifiedAccounts(this.config);
@@ -72,29 +66,25 @@ class Bot {
 
       // 3. WebSocket - подключаемся для real-time данных
       console.log('');
-      console.log('🔌 Подключение к WebSocket...');
       await this.startWebSocket();
 
       console.log('');
       console.log('✅ Бот запущен и работает!');
-      console.log('   📡 WebSocket: активен');
-      console.log('   🔴 Redis Publisher: активен');
-      console.log('   ⏰ Ожидаем pong события (каждые 15 сек)...');
+      console.log('   📡 События публикуются в JSON формате');
       console.log('   Нажмите Ctrl+C для остановки');
+      console.log('');
 
-      // Держим процесс активным
       await new Promise(() => {});
 
     } catch (error) {
-      console.error('❌ Критическая ошибка:', error);
+      const err = error as Error;
+      const event = this.eventBuilder.systemError(err, 'Bot startup');
+      this.eventLogger.error(event);
       await this.stop();
       process.exit(1);
     }
   }
 
-  /**
-   * Запуск Redis Publisher
-   */
   private async startRedis(): Promise<void> {
     this.redisPublisher = new RedisPublisher({
       host: this.config.redisHost,
@@ -102,20 +92,8 @@ class Bot {
     });
 
     await this.redisPublisher.connect();
-    
-    // Тестовая публикация
-    console.log('🧪 Тестовая публикация в Redis...');
-    await this.redisPublisher.publish('system:heartbeat:bot', {
-      source: 'gate.io',
-      type: 'test',
-      timestamp: Date.now(),
-      message: 'Bot started - test message',
-    });
   }
 
-  /**
-   * Запуск WebSocket соединения
-   */
   private async startWebSocket(): Promise<void> {
     this.wsManager = new WsManager({
       url: this.config.wsUrl,
@@ -125,44 +103,38 @@ class Bot {
       pongTimeout: 3000,
     });
 
-    // Определяем тип endpoint
     const isFutures = this.config.wsUrl.includes('fx-ws');
     const pongChannel = isFutures ? 'futures.pong' : 'spot.pong';
-    
-    console.log(`📡 Подписка на канал: ${pongChannel}`);
+    const exchange = 'gate.io';
 
-    // Подписываемся на pong события и публикуем в Redis
+    // Подписываемся на pong события
     this.wsManager.onMessage(pongChannel, async (data) => {
-      console.log('');
-      console.log('🏓 ============================================');
-      console.log('🏓 Получен PONG от биржи!');
-      console.log('🏓 Публикуем в Redis канал: system:heartbeat:bot');
-      console.log('🏓 ============================================');
+      const receiveTime = Date.now();
+      const serverTime = data.time_ms || data.time * 1000;
+      const latency = receiveTime - serverTime;
+
+      // Создаём событие HEARTBEAT_PONG
+      const event = this.eventBuilder.heartbeatPong(latency, exchange);
       
+      // Логируем в JSON
+      this.eventLogger.log(event);
+
+      // Публикуем в Redis
       if (this.redisPublisher) {
-        const payload = {
-          source: 'gate.io',
-          type: 'pong',
-          channel: pongChannel,
-          timestamp: Date.now(),
-          data: data,
-        };
-        
-        console.log('📦 Payload:', JSON.stringify(payload, null, 2));
-        await this.redisPublisher.publish('system:heartbeat:bot', payload);
-        console.log('✅ Опубликовано в Redis!');
-      } else {
-        console.error('❌ Redis Publisher не инициализирован!');
+        await this.redisPublisher.publish('system:heartbeat:bot', event);
       }
-      console.log('');
     });
 
     await this.wsManager.connect();
+
+    // Логируем событие подключения
+    const connectedEvent = this.eventBuilder.wsConnected(this.config.wsUrl);
+    this.eventLogger.log(connectedEvent);
+    if (this.redisPublisher) {
+      await this.redisPublisher.publish('system:events', connectedEvent);
+    }
   }
 
-  /**
-   * Остановка бота
-   */
   async stop(): Promise<void> {
     console.log('');
     console.log('⚠️  Остановка бота...');
@@ -179,21 +151,17 @@ class Bot {
   }
 }
 
-// Точка входа
 const bot = new Bot();
 
-// Обработка Ctrl+C
 process.on('SIGINT', async () => {
   await bot.stop();
   process.exit(0);
 });
 
-// Обработка ошибок
 process.on('uncaughtException', async (error) => {
   console.error('❌ Необработанная ошибка:', error);
   await bot.stop();
   process.exit(1);
 });
 
-// Запуск
 bot.start();
