@@ -7,7 +7,7 @@ dotenv.config();
 
 // ============================================
 // DTrader-5.1 WS-Server
-// Broadcasting Instance with Event System
+// Broadcasting Instance - прозрачная ретрансляция
 // ============================================
 
 class WsServerApp {
@@ -46,7 +46,7 @@ class WsServerApp {
       console.log('✅ WS-Server запущен и работает!');
       console.log(`   📡 WebSocket: ws://localhost:${this.config.wsPort}`);
       console.log('   🔴 Redis Subscriber: активен');
-      console.log('   📡 События в JSON формате');
+      console.log('   📡 Прозрачная ретрансляция событий');
       console.log('   Нажмите Ctrl+C для остановки');
       console.log('');
 
@@ -82,11 +82,12 @@ class WsServerApp {
     this.config.redisChannels.forEach(channel => {
       this.redisSubscriber!.onMessage(channel, (message) => {
         try {
+          // Парсим событие из Redis
           const event = JSON.parse(message);
           
-          // Логируем полученное событие
-          this.eventLogger.log({
-            event: 'REDIS_MESSAGE_RECEIVED',
+          // Логируем что получили (одна строка JSON)
+          const logEvent = {
+            event: 'REDIS_RECEIVED',
             source: 'ws-server',
             level: 'info',
             timestamp: Date.now(),
@@ -98,9 +99,10 @@ class WsServerApp {
             metadata: {
               session_id: this.eventBuilder['sessionId'],
             },
-          });
+          };
+          this.eventLogger.log(logEvent);
 
-          // Broadcast всем подключенным клиентам
+          // Транслируем событие клиентам БЕЗ ИЗМЕНЕНИЙ
           if (this.wsServer) {
             this.wsServer.broadcast(event);
           }
