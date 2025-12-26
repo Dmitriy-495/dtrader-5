@@ -17,15 +17,7 @@ export class RedisSubscriber {
   }
 
   async connect(): Promise<void> {
-    if (this.isConnected) {
-      console.warn('⚠️  Redis уже подключен');
-      return;
-    }
-
-    console.log('🔴 Подключение к Redis Subscriber...');
-    console.log(`   Host: ${this.config.host}`);
-    console.log(`   Port: ${this.config.port}`);
-    console.log(`   Каналы: ${this.config.channels.join(', ')}`);
+    if (this.isConnected) return;
 
     try {
       this.client = createClient({
@@ -35,19 +27,11 @@ export class RedisSubscriber {
         },
       });
 
-      this.client.on('error', (err) => {
-        console.error('❌ Redis ошибка:', err.message);
-      });
-
+      this.client.on('error', () => {});
       await this.client.connect();
       this.isConnected = true;
-      console.log('✅ Redis Subscriber подключен!');
-
-      // Подписываемся на каналы
       await this.subscribeToChannels();
     } catch (error) {
-      const err = error as Error;
-      console.error('❌ Ошибка подключения к Redis:', err.message);
       throw error;
     }
   }
@@ -57,38 +41,23 @@ export class RedisSubscriber {
 
     for (const channel of this.config.channels) {
       await this.client.subscribe(channel, (message, channelName) => {
-        console.log(`📥 Redis message from ${channelName}:`, message.substring(0, 100));
-        
-        // Вызываем обработчик
         const handler = this.messageHandlers.get(channelName);
         if (handler) {
-          console.log(`✅ Вызываем обработчик для ${channelName}`);
           handler(message);
-        } else {
-          console.warn(`⚠️  Нет обработчика для ${channelName}`);
-          console.warn(`   Зарегистрированные:`, Array.from(this.messageHandlers.keys()));
         }
       });
-
-      console.log(`✅ Подписка на канал: ${channel}`);
     }
   }
 
   async disconnect(): Promise<void> {
-    if (!this.isConnected || !this.client) {
-      return;
-    }
-
-    console.log('🔴 Отключение от Redis...');
+    if (!this.isConnected || !this.client) return;
     await this.client.quit();
     this.client = null;
     this.isConnected = false;
-    console.log('✅ Redis отключен');
   }
 
   onMessage(channel: string, handler: (message: string) => void): void {
     this.messageHandlers.set(channel, handler);
-    console.log(`📡 Зарегистрирован обработчик для: ${channel}`);
   }
 
   isReady(): boolean {

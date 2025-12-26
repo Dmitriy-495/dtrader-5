@@ -10,11 +10,6 @@ import { EventBuilder, EventLogger } from "./events";
 
 dotenv.config();
 
-// ============================================
-// DTrader-5.1 Bot
-// Автономный торговый бот с Event System
-// ============================================
-
 class Bot {
   private config = {
     apiKey: process.env.GATEIO_API_KEY || '',
@@ -49,33 +44,10 @@ class Bot {
   }
 
   async start(): Promise<void> {
-    console.log('╔════════════════════════════════════════════╗');
-    console.log('║   🚀 DTrader-5.1 Bot - STARTED! 🚀       ║');
-    console.log('╚════════════════════════════════════════════╝');
-    console.log('');
-
     try {
-      // 1. Подключаемся к Redis
       await this.startRedis();
-
-      // 2. REST API - получаем данные счёта
-      console.log('📊 Запрос данных через REST API...');
-      await getWalletTotalBalance(this.config);
-      await getUnifiedAccounts(this.config);
-      await getUnifiedPositions(this.config);
-
-      // 3. WebSocket - подключаемся для real-time данных
-      console.log('');
       await this.startWebSocket();
-
-      console.log('');
-      console.log('✅ Бот запущен и работает!');
-      console.log('   📡 События публикуются в JSON формате');
-      console.log('   Нажмите Ctrl+C для остановки');
-      console.log('');
-
       await new Promise(() => {});
-
     } catch (error) {
       const err = error as Error;
       const event = this.eventBuilder.systemError(err, 'Bot startup');
@@ -90,7 +62,6 @@ class Bot {
       host: this.config.redisHost,
       port: this.config.redisPort,
     });
-
     await this.redisPublisher.connect();
   }
 
@@ -107,19 +78,14 @@ class Bot {
     const pongChannel = isFutures ? 'futures.pong' : 'spot.pong';
     const exchange = 'gate.io';
 
-    // Подписываемся на pong события
     this.wsManager.onMessage(pongChannel, async (data) => {
       const receiveTime = Date.now();
       const serverTime = data.time_ms || data.time * 1000;
       const latency = receiveTime - serverTime;
 
-      // Создаём событие HEARTBEAT_PONG
       const event = this.eventBuilder.heartbeatPong(latency, exchange);
-      
-      // Логируем в JSON
       this.eventLogger.log(event);
 
-      // Публикуем в Redis
       if (this.redisPublisher) {
         await this.redisPublisher.publish('system:heartbeat:bot', event);
       }
@@ -127,7 +93,6 @@ class Bot {
 
     await this.wsManager.connect();
 
-    // Логируем событие подключения
     const connectedEvent = this.eventBuilder.wsConnected(this.config.wsUrl);
     this.eventLogger.log(connectedEvent);
     if (this.redisPublisher) {
@@ -136,18 +101,12 @@ class Bot {
   }
 
   async stop(): Promise<void> {
-    console.log('');
-    console.log('⚠️  Остановка бота...');
-
     if (this.wsManager) {
       this.wsManager.disconnect();
     }
-
     if (this.redisPublisher) {
       await this.redisPublisher.disconnect();
     }
-
-    console.log('✅ Бот остановлен');
   }
 }
 
@@ -159,7 +118,6 @@ process.on('SIGINT', async () => {
 });
 
 process.on('uncaughtException', async (error) => {
-  console.error('❌ Необработанная ошибка:', error);
   await bot.stop();
   process.exit(1);
 });

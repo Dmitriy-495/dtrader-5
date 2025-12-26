@@ -5,11 +5,6 @@ import { EventBuilder, EventLogger } from './events';
 
 dotenv.config();
 
-// ============================================
-// DTrader-5.1 WS-Server
-// Broadcasting Instance - прозрачная ретрансляция
-// ============================================
-
 class WsServerApp {
   private config = {
     wsPort: parseInt(process.env.WS_PORT || '2808'),
@@ -29,29 +24,10 @@ class WsServerApp {
   }
 
   async start(): Promise<void> {
-    console.log('╔════════════════════════════════════════════╗');
-    console.log('║  📡 DTrader-5.1 WS-Server - STARTED! 📡  ║');
-    console.log('╚════════════════════════════════════════════╝');
-    console.log('');
-
     try {
-      // 1. Запускаем WebSocket Server
       this.startWsServer();
-
-      // 2. Подключаемся к Redis Subscriber
-      console.log('');
       await this.startRedisSubscriber();
-
-      console.log('');
-      console.log('✅ WS-Server запущен и работает!');
-      console.log(`   📡 WebSocket: ws://localhost:${this.config.wsPort}`);
-      console.log('   🔴 Redis Subscriber: активен');
-      console.log('   📡 Прозрачная ретрансляция событий');
-      console.log('   Нажмите Ctrl+C для остановки');
-      console.log('');
-
       await new Promise(() => {});
-
     } catch (error) {
       const err = error as Error;
       const event = this.eventBuilder.systemError(err, 'WS-Server startup');
@@ -62,47 +38,35 @@ class WsServerApp {
   }
 
   private startWsServer(): void {
-    console.log('📡 Инициализация WebSocket Server...');
     this.wsServer = new WsServer({
       port: this.config.wsPort,
     });
-
     this.wsServer.start();
   }
 
   private async startRedisSubscriber(): Promise<void> {
-    console.log('🔴 Инициализация Redis Subscriber...');
     this.redisSubscriber = new RedisSubscriber({
       host: this.config.redisHost,
       port: this.config.redisPort,
       channels: this.config.redisChannels,
     });
 
-    // Обработчик для всех событий
     this.config.redisChannels.forEach(channel => {
       this.redisSubscriber!.onMessage(channel, (message) => {
         try {
-          // Парсим событие из Redis
           const event = JSON.parse(message);
           
-          // Логируем что получили (одна строка JSON)
-          const logEvent = {
-            event: 'REDIS_RECEIVED',
-            source: 'ws-server',
-            level: 'info',
-            timestamp: Date.now(),
-            data: {
+          const logEvent = this.eventBuilder.create(
+            'REDIS_RECEIVED',
+            'info',
+            {
               channel,
               original_event: event.event,
               original_source: event.source,
-            },
-            metadata: {
-              session_id: this.eventBuilder['sessionId'],
-            },
-          };
+            }
+          );
           this.eventLogger.log(logEvent);
 
-          // Транслируем событие клиентам БЕЗ ИЗМЕНЕНИЙ
           if (this.wsServer) {
             this.wsServer.broadcast(event);
           }
@@ -118,18 +82,12 @@ class WsServerApp {
   }
 
   async stop(): Promise<void> {
-    console.log('');
-    console.log('⚠️  Остановка WS-Server...');
-
     if (this.wsServer) {
       this.wsServer.stop();
     }
-
     if (this.redisSubscriber) {
       await this.redisSubscriber.disconnect();
     }
-
-    console.log('✅ WS-Server остановлен');
   }
 }
 
@@ -141,7 +99,6 @@ process.on('SIGINT', async () => {
 });
 
 process.on('uncaughtException', async (error) => {
-  console.error('❌ Необработанная ошибка:', error);
   await app.stop();
   process.exit(1);
 });
