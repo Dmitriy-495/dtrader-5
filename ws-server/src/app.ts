@@ -5,12 +5,15 @@ import { EventBuilder, EventLogger } from './events';
 
 dotenv.config();
 
+// Очищаем терминал
+console.clear();
+
 class WsServerApp {
   private config = {
     wsPort: parseInt(process.env.WS_PORT || '2808'),
     redisHost: process.env.REDIS_HOST || 'localhost',
     redisPort: parseInt(process.env.REDIS_PORT || '6379'),
-    redisChannels: (process.env.REDIS_CHANNELS || 'system:heartbeat:bot,system:events').split(','),
+    redisChannels: (process.env.REDIS_CHANNELS || 'system:heartbeat:bot,system:events,system:state:update').split(','),
   };
 
   private redisSubscriber: RedisSubscriber | null = null;
@@ -24,24 +27,35 @@ class WsServerApp {
   }
 
   async start(): Promise<void> {
+    console.log('╔════════════════════════════════════════════╗');
+    console.log('║  📡 DTrader-5.1 WS-Server Started 📡     ║');
+    console.log('╚════════════════════════════════════════════╝');
+    console.log('');
+
     try {
-      this.startWsServer();
+      await this.startWsServer();
       await this.startRedisSubscriber();
+
+      console.log('✅ WS-Server running | Broadcasting events');
+      console.log('');
+
       await new Promise(() => {});
     } catch (error) {
       const err = error as Error;
       const event = this.eventBuilder.systemError(err, 'WS-Server startup');
       this.eventLogger.error(event);
-      this.stop();
+      await this.stop();
       process.exit(1);
     }
   }
 
-  private startWsServer(): void {
+  private async startWsServer(): Promise<void> {
     this.wsServer = new WsServer({
       port: this.config.wsPort,
+      redisHost: this.config.redisHost,
+      redisPort: this.config.redisPort,
     });
-    this.wsServer.start();
+    await this.wsServer.start();
   }
 
   private async startRedisSubscriber(): Promise<void> {
@@ -83,7 +97,7 @@ class WsServerApp {
 
   async stop(): Promise<void> {
     if (this.wsServer) {
-      this.wsServer.stop();
+      await this.wsServer.stop();
     }
     if (this.redisSubscriber) {
       await this.redisSubscriber.disconnect();

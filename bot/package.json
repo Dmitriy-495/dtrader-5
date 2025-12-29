@@ -10,7 +10,8 @@
     "start": "node dist/app.js",
     "clean": "rm -rf dist",
     "test:redis": "ts-node src/test-redis-publish.ts",
-    "test:events": "ts-node src/test-events.ts"
+    "test:events": "ts-node src/test-events.ts",
+    "test:state": "ts-node src/test-state.ts"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -21,7 +22,6 @@
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@types/ws": "^8.5.13",
-    "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   }

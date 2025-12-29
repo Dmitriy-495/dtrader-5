@@ -1,11 +1,6 @@
 require('dotenv').config();
 const WebSocket = require('ws');
 
-// ============================================
-// DTrader-5.1 WebSocket Test Client
-// Только красивый вывод, без JSON
-// ============================================
-
 const config = {
   wsUrl: process.env.WS_SERVER_URL || 'ws://localhost:2808',
   clientName: process.env.CLIENT_NAME || 'DTrader-TUI-Client',
@@ -18,6 +13,11 @@ class WsClient {
     this.heartbeatCount = 0;
     this.startTime = Date.now();
     this.sessionId = this.generateSessionId();
+    
+    this.accountState = null;
+    this.balanceState = null;
+    this.positionsState = null;
+    this.lastStateUpdate = null;
   }
 
   generateSessionId() {
@@ -39,6 +39,7 @@ class WsClient {
       red: '\x1b[31m',
       cyan: '\x1b[36m',
       gray: '\x1b[90m',
+      magenta: '\x1b[35m',
       reset: '\x1b[0m',
     };
 
@@ -48,12 +49,51 @@ class WsClient {
     console.log(`${colorCode}${emoji} [${time}] ${message}${reset}`);
   }
 
-  connect() {
+  printHeader() {
     console.log('╔════════════════════════════════════════════════════════════════╗');
     console.log('║       📡 DTrader-5.1 WebSocket Test Client 📡                ║');
     console.log('╚════════════════════════════════════════════════════════════════╝');
     console.log('');
+  }
 
+  printState() {
+    console.log('');
+    console.log('─'.repeat(64));
+    console.log('📊 ACCOUNT STATE:');
+    
+    if (this.accountState) {
+      console.log(`   User ID: ${this.accountState.user_id}`);
+      console.log(`   Equity: ${this.accountState.equity} ${this.accountState.currency}`);
+      console.log(`   Leverage: ${this.accountState.leverage}x`);
+    }
+
+    if (this.balanceState) {
+      console.log(`   Balance: ${this.balanceState.balance} ${this.balanceState.currency}`);
+    }
+
+    if (this.positionsState) {
+      const count = this.positionsState.count || 0;
+      console.log(`   Open Positions: ${count}`);
+      
+      if (count > 0 && this.positionsState.positions) {
+        this.positionsState.positions.forEach(pos => {
+          const side = pos.side.toUpperCase();
+          console.log(`      ${pos.contract} ${side} ${Math.abs(pos.size)} | PnL: ${pos.unrealised_pnl}`);
+        });
+      }
+    }
+
+    if (this.lastStateUpdate) {
+      const age = Math.floor((Date.now() - this.lastStateUpdate) / 1000);
+      console.log(`   Last Update: ${age}s ago`);
+    }
+
+    console.log('─'.repeat(64));
+    console.log('');
+  }
+
+  connect() {
+    this.printHeader();
     this.ws = new WebSocket(config.wsUrl);
 
     this.ws.on('open', () => this.handleOpen());
@@ -74,10 +114,12 @@ class WsClient {
 
       if (event.type === 'welcome') {
         this.handleWelcome(event);
+      } else if (event.event === 'INITIAL_STATE') {
+        this.handleInitialState(event);
       } else if (event.event === 'HEARTBEAT_PONG') {
         this.handleHeartbeat(event);
-      } else {
-        // Игнорируем другие события
+      } else if (event.event === 'STATE_UPDATED') {
+        this.handleStateUpdate(event);
       }
     } catch (error) {
       const time = this.formatTime(Date.now());
@@ -88,6 +130,26 @@ class WsClient {
   handleWelcome(message) {
     const time = this.formatTime(Date.now());
     this.prettyLog('👋', time, `${message.message}`, 'cyan');
+  }
+
+  handleInitialState(event) {
+    const time = this.formatTime(Date.now());
+    
+    if (event.data) {
+      if (event.data.account) {
+        this.accountState = event.data.account;
+      }
+      if (event.data.balance) {
+        this.balanceState = event.data.balance;
+      }
+      if (event.data.positions) {
+        this.positionsState = event.data.positions;
+      }
+      this.lastStateUpdate = Date.now();
+    }
+
+    this.prettyLog('📊', time, 'Initial state received from Redis', 'magenta');
+    this.printState();
   }
 
   handleHeartbeat(event) {
@@ -114,6 +176,17 @@ class WsClient {
       `PONG #${this.heartbeatCount} | ${exchange} | ${latency}ms | ${status} | uptime: ${uptimeSec}s`, 
       color
     );
+  }
+
+  handleStateUpdate(event) {
+    const time = this.formatTime(Date.now());
+    
+    if (event.data) {
+      // Обновляем только изменённые данные
+      this.lastStateUpdate = Date.now();
+    }
+
+    this.prettyLog('📊', time, `State updated`, 'magenta');
   }
 
   handleError(error) {

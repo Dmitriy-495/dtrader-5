@@ -1,38 +1,54 @@
-# Makefile (работает на Linux, Mac, Windows с Git Bash)
-.PHONY: help start stop install
+.PHONY: help start stop restart logs logs-bot logs-ws-server logs-ws-client status clean
 
 help:
-	@echo "Команды:"
-	@echo "  make install  - установить зависимости"
-	@echo "  make start    - запустить все сервисы"
-	@echo "  make stop     - остановить все"
-	@echo "  make logs     - посмотреть логи"
-
-install:
-	@echo "Устанавливаем зависимости..."
-	cd bot && npm install
-	cd strategy && pip install -r requirements.txt
-	cd trader && pip install -r requirements.txt
+	@echo "╔════════════════════════════════════════════╗"
+	@echo "║     DTrader-5.1 Commands                  ║"
+	@echo "╚════════════════════════════════════════════╝"
+	@echo ""
+	@echo "  make start          - Start all instances"
+	@echo "  make stop           - Stop all instances"
+	@echo "  make restart        - Restart all instances"
+	@echo "  make status         - Show running processes"
+	@echo ""
+	@echo "  make logs           - Show all logs"
+	@echo "  make logs-bot       - Show bot logs"
+	@echo "  make logs-ws-server - Show ws-server logs"
+	@echo "  make logs-ws-client - Show ws-client logs"
+	@echo ""
+	@echo "  make clean          - Stop all and clean logs"
+	@echo ""
 
 start:
-	@echo "Запускаем Redis..."
-	redis-server --daemonize yes
-	@echo "Запускаем бота..."
-	cd bot && npm start &
-	@echo "Запускаем стратегию..."
-	cd strategy && python main.py &
-	@echo "Запускаем трейдера..."
-	cd trader && python trader.py &
-	@echo "✅ Все сервисы запущены!"
-	@echo "Для остановки: make stop"
+	@./start-all.sh
 
 stop:
-	@echo "Останавливаем все..."
-	-pkill -f redis-server
-	-pkill -f node
-	-pkill -f python
-	@echo "✅ Все остановлено"
+	@./stop-all.sh
+
+restart:
+	@echo "🔄 Restarting all instances..."
+	@./stop-all.sh
+	@sleep 2
+	@./start-all.sh
+
+status:
+	@./status.sh
 
 logs:
-	@echo "Логи бота:"
-	tail -f bot/logs/app.log
+	@./logs.sh all
+
+logs-bot:
+	@./logs.sh bot
+
+logs-ws-server:
+	@./logs.sh ws-server
+
+logs-ws-client:
+	@./logs.sh ws-client
+
+clean:
+	@./stop-all.sh
+	@echo ""
+	@echo "🧹 Cleaning logs..."
+	@rm -f logs/*.log
+	@echo "✅ Logs cleaned"
+	@echo ""
