@@ -1,4 +1,4 @@
-# 🚀 DTrader-5 - Next Generation Trading Bot
+u# 🚀 DTrader-5 - Next Generation Trading Bot
 
 Микросервисная архитектура для автоматического трейдинга на Gate.io.
 

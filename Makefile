@@ -1,10 +1,11 @@
-.PHONY: help start stop restart logs logs-bot logs-ws-server logs-ws-client status clean
+.PHONY: help start stop restart logs logs-bot logs-ws-server logs-ws-client status clean setup
 
 help:
 	@echo "╔════════════════════════════════════════════╗"
 	@echo "║     DTrader-5.1 Commands                  ║"
 	@echo "╚════════════════════════════════════════════╝"
 	@echo ""
+	@echo "  make setup          - Setup (chmod +x scripts)"
 	@echo "  make start          - Start all instances"
 	@echo "  make stop           - Stop all instances"
 	@echo "  make restart        - Restart all instances"
@@ -18,7 +19,13 @@ help:
 	@echo "  make clean          - Stop all and clean logs"
 	@echo ""
 
-start:
+setup:
+	@echo "🔧 Setting up permissions..."
+	@chmod +x start-all.sh stop-all.sh status.sh logs.sh
+	@chmod +x redis/scripts/*.sh
+	@echo "✅ Setup complete!"
+
+start: setup
 	@./start-all.sh
 
 stop:
@@ -44,6 +51,9 @@ logs-ws-server:
 
 logs-ws-client:
 	@./logs.sh ws-client
+	
+	monitor:
+	@./monitor.sh
 
 clean:
 	@./stop-all.sh
@@ -51,4 +61,4 @@ clean:
 	@echo "🧹 Cleaning logs..."
 	@rm -f logs/*.log
 	@echo "✅ Logs cleaned"
-	@echo ""
+	@echo """

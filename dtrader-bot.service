@@ -1,0 +1,37 @@
+[Unit]
+Description=DTrader-5.1 Bot (Market Data Collector)
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=YOUR_USER
+Group=YOUR_USER
+WorkingDirectory=/path/to/dtrader-5/bot
+Environment="NODE_ENV=production"
+EnvironmentFile=/path/to/dtrader-5/bot/.env
+
+# Command
+ExecStart=/usr/bin/npx ts-node src/app.ts
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dtrader-bot
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=1G
+
+[Install]
+WantedBy=multi-user.target
